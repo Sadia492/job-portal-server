@@ -12,7 +12,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 app.use(
   cors({
     origin: [
-      "http://localhost:5174",
+      "http://localhost:5173",
       "https://job-portal-4b52d.web.app",
       "https://job-portal-4b52d.firebaseapp.com",
     ],
