@@ -120,6 +120,8 @@ async function run() {
     });
 
     app.get("/user-jobs/:email", verifyToken, async (req, res) => {
+      // console.log(req.user.email)
+
       if (req.user.email !== req.params.email) {
         return res.status(403).send("Forbidden access");
       }
@@ -173,7 +175,12 @@ async function run() {
       const result = await jobsApplicationCollection.findOne(query);
       res.send(result);
     });
-    app.get("/user-applications/:email", async (req, res) => {
+    app.get("/user-applications/:email", verifyToken, async (req, res) => {
+      console.log(req.user.email);
+
+      if (req.user.email !== req.params.email) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
       const newEmail = req.params.email;
       const query = { applicant_email: newEmail };
       const result = await jobsApplicationCollection.find(query).toArray();
