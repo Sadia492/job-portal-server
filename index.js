@@ -2,12 +2,43 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const app = express();
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
+
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5174",
+      "https://job-portal-4b52d.web.app",
+      "https://job-portal-4b52d.firebaseapp.com",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
+
+// custom middleware
+const verifyToken = (req, res, next) => {
+  const token = req.cookies?.token;
+
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      console.log("Token verification failed", err);
+      return res.status(401).send({ message: "Unauthorized access" });
+    }
+
+    req.user = decoded;
+    next();
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_User}:${process.env.DB_Pass}@cluster0.dr5qw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -28,7 +59,31 @@ async function run() {
       .collection("applications");
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      console.log(req.body);
+      const token = jwt.sign(user, process.env.JWT_SECRET, {
+        expiresIn: "1h",
+      });
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        })
+        .send({ success: true });
+    });
+    app.post("/logout", (req, res) => {
+      res
+        .clearCookie("token", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        })
+        .send({ success: true });
+    });
     // job related works
+
     app.get("/jobs", async (req, res) => {
       const searchTitle = req.query.title;
       const FilterJobType = req.query.jobType;
@@ -64,8 +119,11 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/user-jobs/:email", async (req, res) => {
-      //   console.log(req.params.email);
+    app.get("/user-jobs/:email", verifyToken, async (req, res) => {
+      if (req.user.email !== req.params.email) {
+        return res.status(403).send("Forbidden access");
+      }
+
       const newEmail = req.params.email;
       const query = { hr_email: newEmail };
       const result = await jobsCollection.find(query).toArray();
